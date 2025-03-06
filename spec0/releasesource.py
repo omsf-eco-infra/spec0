@@ -7,11 +7,15 @@ from packaging.version import Version, InvalidVersion
 
 @dataclasses.dataclass
 class Release:
+    """A release of a package."""
+
     version: Version
     release_date: datetime.datetime
 
 
 class ReleaseSource:
+    """A source of package releases."""
+
     def _get_releases(self, package: str) -> list[Release]:
         raise NotImplementedError
 
@@ -20,6 +24,11 @@ class ReleaseSource:
 
 
 class PyPIReleaseSource(ReleaseSource):
+    """A source of package releases from PyPI.
+
+    Typically, you only need one instance of this class.
+    """
+
     def _get_releases(self, package: str) -> list[Release]:
         url = f"https://pypi.org/pypi/{package}/json"
         response = requests.get(url)
@@ -30,7 +39,6 @@ class PyPIReleaseSource(ReleaseSource):
         release_list = []
 
         for version_str, files in releases_data.items():
-            # Attempt to parse the version string
             try:
                 parsed_version = Version(version_str)
             except InvalidVersion:
@@ -39,7 +47,6 @@ class PyPIReleaseSource(ReleaseSource):
                 )
                 continue
 
-            # Determine earliest upload time among all distributions for that version
             earliest_date = None
             for file_info in files:
                 upload_time_str = file_info.get("upload_time_iso_8601")
@@ -56,10 +63,7 @@ class PyPIReleaseSource(ReleaseSource):
                     Release(version=parsed_version, release_date=earliest_date)
                 )
 
-        # Sort releases by date descending (newest first)
         release_list.sort(key=lambda r: r.release_date, reverse=True)
-
-        # Yield them in sorted order
         for release in release_list:
             yield release
 
