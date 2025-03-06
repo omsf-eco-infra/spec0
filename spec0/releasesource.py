@@ -1,7 +1,8 @@
 import dataclasses
 import datetime
 import requests
-from packaging.version import Version
+import warnings
+from packaging.version import Version, InvalidVersion
 
 
 @dataclasses.dataclass
@@ -33,7 +34,7 @@ class PyPIReleaseSource(ReleaseSource):
             try:
                 parsed_version = Version(version_str)
             except InvalidVersion:
-                warnings.warn(f"Skipping invalid version '{version_str}' for package '{package_name}'.")
+                warnings.warn(f"Skipping invalid version '{version_str}' for package '{package}'.")
                 continue
 
             # Determine earliest upload time among all distributions for that version
