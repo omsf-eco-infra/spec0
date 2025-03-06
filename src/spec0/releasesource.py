@@ -71,18 +71,18 @@ class PyPIReleaseSource(ReleaseSource):
 
 
 class GitHubReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release]: ...
+    def _get_releases(self, package: str) -> Generator[Release, None, None]: ...
 
 
 class GitHubTagReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release]: ...
+    def _get_releases(self, package: str) -> Generator[Release, None, None]: ...
 
 
 class CondaReleaseSource(ReleaseSource):
     def __init__(self, channel_platforms: list[str] = None):
         self.platforms = platforms or ["conda-forge/linux-64", "conda-forge/noarch"]
 
-    def get_releases(self, package: str) -> Generator[Release]: ...
+    def get_releases(self, package: str) -> Generator[Release, None, None]: ...
 
 
 class DefaultReleaseSource(ReleaseSource):
@@ -92,7 +92,7 @@ class DefaultReleaseSource(ReleaseSource):
         except:
             return None
 
-    def get_releases(self, package: str) -> Generator[Release]:
+    def get_releases(self, package: str) -> Generator[Release, None, None]:
         sources = [
             PyPIReleaseSource(),
             GitHubReleaseSource(),
