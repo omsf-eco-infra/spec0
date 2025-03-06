@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spec0"
+version = "0.0.1.dev0"
+description = "A tool to check which versions of a package should be supported according to SPEC0."
+authors = [
+  { name = "David W.H. Swenson", email = "dwhs@hyperblazer.net" }
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11,<4"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = ["spec0", "package support", "cli"]
+
+dependencies = [
+  "requests",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "responses",
+  "black",
+  "pre-commit",
+]
+
+[tool.setuptools]
+packages = ["spec0"]
+package-dir = { "" = "src" }
+
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["osx-64"]
+
+[tool.pixi.pypi-dependencies]
+spec0 = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+
+[tool.pixi.tasks]
