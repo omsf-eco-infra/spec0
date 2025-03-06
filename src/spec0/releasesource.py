@@ -71,21 +71,74 @@ class PyPIReleaseSource(ReleaseSource):
 
 
 class GitHubReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release]:
-        ...
+    def _get_releases(self, package: str) -> Generator[Release]: ...
 
 
 class GitHubTagReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release]:
-        ...
+    def _get_releases(self, package: str) -> Generator[Release]: ...
 
 
 class CondaReleaseSource(ReleaseSource):
-    def __init__(self, channel_platforms: list[str] = None):
-        self.platforms = platforms or ["conda-forge/linux-64", "conda-forge/noarch"]
+    """
 
-    def get_releases(self, package: str) -> Generator[Release]:
-        ...
+    Parameters
+    ----------
+    channel_platforms : list[str]
+        A list of strings of the form "channel/platform", e.g.,
+        "conda-forge/linux-64".
+    """
+
+    def __init__(self, channel_platforms: list[str]):
+        # TODO: we should handle caching of the repodata (and maybe get it
+        # as bz2?)
+        self._repodata = {"packages": {}, "packages.conda": {}}
+
+        for channel_platform in channel_platforms:
+            channel, platform = channel_platform.split("/", 1)
+            url = f"https://conda.anaconda.org/{channel}/{platform}/repodata.json"
+            resp = requests.get(url)
+            resp.raise_for_status()
+
+            data = resp.json()
+            # Merge packages
+            for pkg_name, pkg_info in data.get("packages", {}).items():
+                self._repodata["packages"][pkg_name] = pkg_info
+            for pkg_name, pkg_info in data.get("packages.conda", {}).items():
+                self._repodata["packages.conda"][pkg_name] = pkg_info
+
+    def _get_releases(self, package):
+        # Combine "packages" and "packages.conda" if present
+        package_entries = self._repodata.get("packages", {})
+        packages_conda_entries = self._repodata.get("packages.conda", {})
+        all_packages = {**package_entries, **packages_conda_entries}
+
+        releases = []
+        for pkg_key, pkg_info in all_packages.items():
+            if pkg_info.get("name") == package:
+                version_str = pkg_info["version"]
+
+                # The conda timestamp is in milliseconds since epoch
+                timestamp = pkg_info.get("timestamp")
+                if timestamp is not None:
+                    release_date = datetime.datetime.fromtimestamp(
+                        timestamp / 1000, datetime.timezone.utc
+                    )
+                else:
+                    warnings.warn(f"No release date for {pkg_key}")
+                    release_date = None
+
+                if release_date is not None:
+                    releases.append(
+                        Release(version=Version(version_str), release_date=release_date)
+                    )
+
+        # Sort in descending order by release_date (None dates go last)
+        releases.sort(
+            key=lambda r: (r.release_date is None, r.release_date), reverse=True
+        )
+
+        for release_obj in releases:
+            yield release_obj
 
 
 class DefaultReleaseSource(ReleaseSource):
