@@ -4,6 +4,8 @@ import requests
 import warnings
 from packaging.version import Version, InvalidVersion
 
+from typing import Generator
+
 
 @dataclasses.dataclass
 class Release:
@@ -14,12 +16,12 @@ class Release:
 
 
 class ReleaseSource:
-    """A source of package releases."""
+    """ABC for a source of package releases."""
 
-    def _get_releases(self, package: str) -> list[Release]:
-        raise NotImplementedError
+    def _get_releases(self, package: str) -> Generator[Release]:
+        raise NotImplementedError()
 
-    def get_releases(self, package: str) -> list[Release]:
+    def get_releases(self, package: str) -> Generator[Release]:
         yield from self._get_releases(package)
 
 
@@ -29,7 +31,7 @@ class PyPIReleaseSource(ReleaseSource):
     Typically, you only need one instance of this class.
     """
 
-    def _get_releases(self, package: str) -> list[Release]:
+    def _get_releases(self, package: str) -> Generator[Release]:
         url = f"https://pypi.org/pypi/{package}/json"
         response = requests.get(url)
         response.raise_for_status()
@@ -69,12 +71,12 @@ class PyPIReleaseSource(ReleaseSource):
 
 
 class GitHubReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> list[Release]:
+    def _get_releases(self, package: str) -> Generator[Release]:
         ...
 
 
 class GitHubTagReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> list[Release]:
+    def _get_releases(self, package: str) -> Generator[Release]:
         ...
 
 
@@ -82,7 +84,7 @@ class CondaReleaseSource(ReleaseSource):
     def __init__(self, channel_platforms: list[str] = None):
         self.platforms = platforms or ["conda-forge/linux-64", "conda-forge/noarch"]
 
-    def get_releases(self, package: str) -> list[Release]:
+    def get_releases(self, package: str) -> Generator[Release]:
         ...
 
 
@@ -93,7 +95,7 @@ class DefaultReleaseSource(ReleaseSource):
         except:
             return None
 
-    def get_releases(self, package: str) -> list[Release]:
+    def get_releases(self, package: str) -> Generator[Release]:
         sources = [
             PyPIReleaseSource(),
             GitHubReleaseSource(),
@@ -103,6 +105,6 @@ class DefaultReleaseSource(ReleaseSource):
         for source in sources:
             releases = self._try_release_source(source, package)
             if releases:
-                return releases
+                yield from releases
 
         raise ValueError(f"Failed to get releases for {package}")
