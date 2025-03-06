@@ -34,7 +34,9 @@ class PyPIReleaseSource(ReleaseSource):
             try:
                 parsed_version = Version(version_str)
             except InvalidVersion:
-                warnings.warn(f"Skipping invalid version '{version_str}' for package '{package}'.")
+                warnings.warn(
+                    f"Skipping invalid version '{version_str}' for package '{package}'."
+                )
                 continue
 
             # Determine earliest upload time among all distributions for that version
@@ -42,14 +44,17 @@ class PyPIReleaseSource(ReleaseSource):
             for file_info in files:
                 upload_time_str = file_info.get("upload_time_iso_8601")
                 if upload_time_str:
-                    dt = datetime.datetime.fromisoformat(upload_time_str.replace("Z", "+00:00"))
+                    dt = datetime.datetime.fromisoformat(
+                        upload_time_str.replace("Z", "+00:00")
+                    )
                     if earliest_date is None or dt < earliest_date:
                         earliest_date = dt
 
             # Only add to list if we successfully found an upload date
             if earliest_date is not None:
-                release_list.append(Release(version=parsed_version,
-                                            release_date=earliest_date))
+                release_list.append(
+                    Release(version=parsed_version, release_date=earliest_date)
+                )
 
         # Sort releases by date descending (newest first)
         release_list.sort(key=lambda r: r.release_date, reverse=True)
@@ -57,7 +62,6 @@ class PyPIReleaseSource(ReleaseSource):
         # Yield them in sorted order
         for release in release_list:
             yield release
-
 
 
 class GitHubReleaseSource(ReleaseSource):
@@ -72,8 +76,7 @@ class GitHubTagReleaseSource(ReleaseSource):
 
 class CondaReleaseSource(ReleaseSource):
     def __init__(self, channel_platforms: list[str] = None):
-        self.platforms = platforms or ["conda-forge/linux-64",
-                                       "conda-forge/noarch"]
+        self.platforms = platforms or ["conda-forge/linux-64", "conda-forge/noarch"]
 
     def get_releases(self, package: str) -> list[Release]:
         ...
@@ -91,7 +94,7 @@ class DefaultReleaseSource(ReleaseSource):
             PyPIReleaseSource(),
             GitHubReleaseSource(),
             GitHubTagReleaseSource(),
-            CondaForgeReleaseSource()
+            CondaForgeReleaseSource(),
         ]
         for source in sources:
             releases = self._try_release_source(source, package)
