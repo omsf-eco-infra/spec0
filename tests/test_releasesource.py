@@ -101,3 +101,84 @@ class TestPyPIReleaseSource:
 
         dates = [r.release_date for r in releases]
         assert_is_descending(dates)
+
+
+MOCK_REPODATA = {
+    "packages": {
+        "mypackage-2.2.0-0.tar.bz2": {
+            "name": "mypackage",
+            "version": "2.2.0",
+            # 2023-03-03T12:00:00Z => 1677844800000 ms epoch
+            "timestamp": 1677844800000,
+        },
+        "mypackage-2.1.0-0.tar.bz2": {
+            "name": "mypackage",
+            "version": "2.1.0",
+            # 2023-02-10T09:00:00Z => 1676019600000 ms epoch
+            "timestamp": 1676019600000,
+        },
+        "mypackage-1.9.0-0.tar.bz2": {
+            "name": "mypackage",
+            "version": "1.9.0",
+            # 2023-01-15T20:00:00Z => 1673812800000 ms epoch
+            "timestamp": 1673812800000,
+        },
+    },
+}
+
+
+class TestCondaReleaseSource:
+    @responses.activate
+    def test_valid_only_versions(self):
+        """
+        Test that when repodata contains only valid versions, we get them
+        in descending release_date order, with no warnings.
+        """
+        url = "https://conda.anaconda.org/mock-channel/mock-platform/repodata.json"
+        responses.add(
+            method=responses.GET,
+            url=url,
+            json=MOCK_REPODATA,
+            status=200,
+        )
+
+        # Instantiate the source. It will download the mocked repodata.
+        source = CondaReleaseSource(["mock-channel/mock-platform"])
+        releases = list(source._get_releases("mypackage"))
+
+        # We should have 3 releases
+        assert len(releases) == 3
+
+        # Check versions
+        versions = [r.version for r in releases]
+        assert versions == [
+            Version("2.2.0"),
+            Version("2.1.0"),
+            Version("1.9.0"),
+        ]
+
+        # Check release dates
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+        assert release_dates == [
+            datetime.datetime(2023, 3, 3, 12, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 2, 10, 9, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 1, 15, 20, 0, tzinfo=datetime.timezone.utc),
+        ]
+
+    @pytest.mark.parametrize("package_name", ["python", "numpy", "scipy"])
+    @requires_internet
+    def test_integration_releases(self, package_name):
+        """
+        Integration test using real data from conda-forge for the given package.
+        Checks:
+          1) We get at least one release.
+          2) The release dates are in descending order.
+        """
+        source = CondaReleaseSource(["conda-forge/linux-64"])
+        releases = list(source._get_releases(package_name))
+
+        assert len(releases) > 0
+
+        dates = [r.release_date for r in releases if r.release_date is not None]
+        assert_is_descending(dates)
