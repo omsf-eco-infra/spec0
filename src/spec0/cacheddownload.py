@@ -1,6 +1,10 @@
 import os
+import pathlib
 import time
 import requests
+
+
+CACHE_DIR = pathlib.Path.home() / ".cache" / "spec0"
 
 
 def get_file(url: str, cache_path: str, ttl: int = 3600) -> str:
@@ -30,10 +34,11 @@ def get_file(url: str, cache_path: str, ttl: int = 3600) -> str:
     file_needs_download = True
 
     if os.path.exists(cache_path):
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         file_age = time.time() - os.path.getmtime(cache_path)
         if file_age < ttl:
             file_needs_download = False
+    else:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     if file_needs_download:
         response = requests.get(url, stream=True)

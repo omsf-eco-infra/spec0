@@ -1,10 +1,13 @@
 import dataclasses
 import datetime
+import json
 import requests
 import warnings
 from packaging.version import Version, InvalidVersion
 
 from typing import Generator
+
+from spec0.cacheddownload import get_file, CACHE_DIR
 
 
 @dataclasses.dataclass
@@ -96,10 +99,11 @@ class CondaReleaseSource(ReleaseSource):
         for channel_platform in channel_platforms:
             channel, platform = channel_platform.split("/", 1)
             url = f"https://conda.anaconda.org/{channel}/{platform}/repodata.json"
-            resp = requests.get(url)
-            resp.raise_for_status()
+            cachefile = CACHE_DIR / channel_platform / "repodata.json"
+            cachefile = get_file(url, cachefile)
+            with open(cachefile, "r") as f:
+                data = json.load(f)
 
-            data = resp.json()
             # Merge packages
             for pkg_name, pkg_info in data.get("packages", {}).items():
                 self._repodata["packages"][pkg_name] = pkg_info
@@ -124,7 +128,7 @@ class CondaReleaseSource(ReleaseSource):
                         timestamp / 1000, datetime.timezone.utc
                     )
                 else:
-                    warnings.warn(f"No release date for {pkg_key}")
+                    # warnings.warn(f"No release date for {pkg_key}")
                     release_date = None
 
                 if release_date is not None:
@@ -139,25 +143,3 @@ class CondaReleaseSource(ReleaseSource):
 
         for release_obj in releases:
             yield release_obj
-
-
-class DefaultReleaseSource(ReleaseSource):
-    def _try_release_source(self, source: ReleaseSource, package: str):
-        try:
-            return source.get_releases(package)
-        except:
-            return None
-
-    def get_releases(self, package: str) -> Generator[Release, None, None]:
-        sources = [
-            PyPIReleaseSource(),
-            GitHubReleaseSource(),
-            GitHubTagReleaseSource(),
-            CondaForgeReleaseSource(),
-        ]
-        for source in sources:
-            releases = self._try_release_source(source, package)
-            if releases:
-                yield from releases
-
-        raise ValueError(f"Failed to get releases for {package}")
