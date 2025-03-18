@@ -74,11 +74,97 @@ class PyPIReleaseSource(ReleaseSource):
 
 
 class GitHubReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release, None, None]: ...
+    """Class to fetch all GitHub releases for a given repository using the GitHub GraphQL API."""
 
+    def __init__(self, github_token: str):
+        """
+        Initialize the release source with a GitHub token.
 
-class GitHubTagReleaseSource(ReleaseSource):
-    def _get_releases(self, package: str) -> Generator[Release, None, None]: ...
+        Parameters
+        ----------
+        github_token : str
+            Personal access token (PAT) with permissions to query the desired repository.
+        """
+        self.github_token = github_token
+
+    def _get_releases(self, owner_repo: str):
+        """
+        Generate all releases for a repository in descending order of creation date (most recent first).
+
+        Parameters
+        ----------
+        owner_repo : str
+            A string in the format "owner/repo" that identifies the repository.
+
+        Yields
+        ------
+        Release
+            A `Release` object containing:
+            - `version` (packaging.version.Version)
+            - `release_date` (datetime.datetime)
+
+        Warns
+        -----
+        UserWarning
+            When `tagName` from GitHub cannot be parsed as a valid version.
+        """
+        owner, repo = owner_repo.split("/", 1)
+
+        query = """
+        query($owner: String!, $repo: String!, $after: String) {
+          repository(owner: $owner, name: $repo) {
+            releases(first: 100, after: $after, orderBy: {field: CREATED_AT, direction: DESC}) {
+              pageInfo {
+                endCursor
+                hasNextPage
+              }
+              nodes {
+                tagName
+                createdAt
+              }
+            }
+          }
+        }
+        """
+
+        url = "https://api.github.com/graphql"
+        headers = {
+            "Authorization": f"Bearer {self.github_token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+
+        has_next_page = True
+        after_cursor = None
+
+        while has_next_page:
+            variables = {
+                "owner": owner,
+                "repo": repo,
+                "after": after_cursor,
+            }
+            response = requests.post(
+                url, json={"query": query, "variables": variables}, headers=headers
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            releases_data = data["data"]["repository"]["releases"]
+
+            for node in releases_data["nodes"]:
+                tag_name = node["tagName"]
+                try:
+                    version = Version(tag_name)
+                except InvalidVersion:
+                    warnings.warn(f"Skipping invalid version: {tag_name}", UserWarning)
+                    continue  # Skip this release
+
+                release_date = datetime.fromisoformat(
+                    node["createdAt"].replace("Z", "+00:00")
+                )
+                yield Release(version, release_date)
+
+            has_next_page = releases_data["pageInfo"]["hasNextPage"]
+            after_cursor = releases_data["pageInfo"]["endCursor"]
 
 
 class CondaReleaseSource(ReleaseSource):
