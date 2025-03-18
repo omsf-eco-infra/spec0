@@ -89,7 +89,8 @@ class GitHubReleaseSource(ReleaseSource):
 
     def _get_releases(self, owner_repo: str):
         """
-        Generate all releases for a repository in descending order of creation date (most recent first).
+        Generate all releases for a repository in descending order of
+        creation date (most recent first).
 
         Parameters
         ----------
@@ -158,7 +159,7 @@ class GitHubReleaseSource(ReleaseSource):
                     warnings.warn(f"Skipping invalid version: {tag_name}", UserWarning)
                     continue  # Skip this release
 
-                release_date = datetime.fromisoformat(
+                release_date = datetime.datetime.fromisoformat(
                     node["createdAt"].replace("Z", "+00:00")
                 )
                 yield Release(version, release_date)

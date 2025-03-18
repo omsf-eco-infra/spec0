@@ -2,6 +2,7 @@ import pytest
 import responses
 import warnings
 import datetime
+import os
 from packaging.version import Version
 
 from requires_internet import requires_internet
@@ -182,3 +183,185 @@ class TestCondaReleaseSource:
 
         dates = [r.release_date for r in releases if r.release_date is not None]
         assert_is_descending(dates)
+
+
+MOCK_GH_RESPONSE_VALID_ONLY = {
+    "data": {
+        "repository": {
+            "releases": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {"tagName": "2.2.0", "createdAt": "2023-03-03T12:00:00Z"},
+                    {"tagName": "2.1.0", "createdAt": "2023-02-10T09:00:00Z"},
+                    {"tagName": "1.9.0", "createdAt": "2023-01-15T20:00:00Z"},
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_MIXED = {
+    "data": {
+        "repository": {
+            "releases": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {"tagName": "10.0.0", "createdAt": "2024-01-01T12:00:00Z"},
+                    {
+                        "tagName": "not-a-valid-version",
+                        "createdAt": "2024-01-02T12:00:00Z",
+                    },
+                    {"tagName": "9.9.9", "createdAt": "2023-12-15T12:00:00Z"},
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_PAGE1 = {
+    "data": {
+        "repository": {
+            "releases": {
+                "pageInfo": {"endCursor": "CURSOR1", "hasNextPage": True},
+                "nodes": [
+                    {"tagName": "3.0.0", "createdAt": "2024-01-05T12:00:00Z"},
+                    {"tagName": "2.5.0", "createdAt": "2023-12-20T12:00:00Z"},
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_PAGE2 = {
+    "data": {
+        "repository": {
+            "releases": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {"tagName": "2.2.0", "createdAt": "2023-11-10T12:00:00Z"},
+                    {"tagName": "2.0.0", "createdAt": "2023-10-01T12:00:00Z"},
+                ],
+            }
+        }
+    }
+}
+
+
+class TestGitHubReleaseSource:
+    @responses.activate
+    def test_valid_only_versions(self):
+        """Test that valid versions are parsed and returned in descending order."""
+        url = "https://api.github.com/graphql"
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_VALID_ONLY,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+        releases = list(source._get_releases("octocat/Hello-World"))
+
+        # Verify the number of releases.
+        assert len(releases) == 3
+
+        # Check that the versions are correctly parsed.
+        versions = [r.version for r in releases]
+        assert versions == [Version("2.2.0"), Version("2.1.0"), Version("1.9.0")]
+
+        # Verify that the release dates are in descending order.
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+        assert release_dates == [
+            datetime.datetime(2023, 3, 3, 12, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 2, 10, 9, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 1, 15, 20, 0, tzinfo=datetime.timezone.utc),
+        ]
+
+    @responses.activate
+    def test_mixed_versions_warning(self):
+        """Test that invalid version strings trigger a warning and are skipped."""
+        url = "https://api.github.com/graphql"
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_MIXED,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        with pytest.warns(UserWarning, match="Skipping invalid version"):
+            warnings.simplefilter("always")
+            source = GitHubReleaseSource(token)
+            releases = list(source._get_releases("octocat/Hello-World"))
+
+        # Only the valid versions should be returned.
+        assert len(releases) == 2
+        versions = [r.version for r in releases]
+        assert versions == [Version("10.0.0"), Version("9.9.9")]
+
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+        assert release_dates == [
+            datetime.datetime(2024, 1, 1, 12, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 12, 15, 12, 0, tzinfo=datetime.timezone.utc),
+        ]
+
+    @responses.activate
+    def test_pagination(self):
+        """
+        Test that pagination is handled correctly by returning all releases from
+        multiple pages in the proper order.
+        """
+        url = "https://api.github.com/graphql"
+        # Simulate two paginated responses.
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_PAGE1,
+            status=200,
+        )
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_PAGE2,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+        releases = list(source._get_releases("octocat/Hello-World"))
+
+        # We expect 4 releases total.
+        assert len(releases) == 4
+
+        # Check the expected version order.
+        expected_versions = [
+            Version("3.0.0"),
+            Version("2.5.0"),
+            Version("2.2.0"),
+            Version("2.0.0"),
+        ]
+        versions = [r.version for r in releases]
+        assert versions == expected_versions
+
+        # Verify that the release dates are in descending order.
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+
+    @pytest.mark.skipif(
+        not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set"
+    )
+    def test_integration_openpathsampling(self):
+        """
+        Integration test using the real GitHub API to fetch releases for the
+        repository openpathsampling/openpathsampling. Checks that at least one
+        release is returned and that the releases are in descending order.
+        """
+        token = os.environ["GITHUB_TOKEN"]
+        source = GitHubReleaseSource(token)
+        releases = list(source._get_releases("openpathsampling/openpathsampling"))
+        assert len(releases) > 0
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
