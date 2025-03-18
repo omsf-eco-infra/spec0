@@ -92,8 +92,7 @@ class CondaReleaseSource(ReleaseSource):
     """
 
     def __init__(self, channel_platforms: list[str]):
-        # TODO: we should handle caching of the repodata (and maybe get it
-        # as bz2?)
+        # TODO: determine if can use the bz2 instead
         self._repodata = {"packages": {}, "packages.conda": {}}
 
         for channel_platform in channel_platforms:
