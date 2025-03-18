@@ -32,8 +32,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "pytest-cov",
   "responses",
-  "black",
+  "ruff",
   "pre-commit",
 ]
 
@@ -53,3 +54,6 @@ default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["F405", "F403"]  # allow star imports in tests
