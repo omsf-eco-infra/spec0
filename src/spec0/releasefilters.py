@@ -50,6 +50,7 @@ def quarter_to_date(quarter):
 
 
 def shift_date_by_months(date, n_months):
+    """Shift a date by a number of months."""
     # used to set the cutoff; if there's a better way to do this, go for it.
     # Months are weird because they aren't all the same length.
     dyears = n_months // 12
@@ -58,6 +59,7 @@ def shift_date_by_months(date, n_months):
 
 
 def get_oldest_minor_release(releases: Iterable[Release]):
+    """Get the oldest release for each minor release version."""
     oldest_minor_release = defaultdict(
         lambda: Release(
             version=None,
