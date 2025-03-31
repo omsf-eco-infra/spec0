@@ -125,7 +125,7 @@ def test_get_n_months(package, python_override):
 
 
 class TestSPEC0StrictDate:
-    def test_get_minimum_supported(self, releases):
+    def test_filter(self, releases):
         fixed_now = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
         with patch(
             "spec0.releasefilters.datetime.datetime", wraps=datetime.datetime
@@ -133,7 +133,7 @@ class TestSPEC0StrictDate:
             mock_datetime.utcnow.return_value = fixed_now
 
             spec_strict = SPEC0StrictDate(n_months=24, python_override=False)
-            supported = spec_strict._get_minimum_supported("foo", releases)
+            supported = spec_strict.filter("foo", releases)
             expected = releases[1:-1]
             for release in expected:
                 key = (
@@ -160,7 +160,7 @@ class TestSPEC0StrictDate:
 
 
 class TestSPEC0Quarter:
-    def test_get_minimum_supported(self, releases):
+    def test_filter(self, releases):
         fixed_now = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
         with patch(
             "spec0.releasefilters.datetime.datetime", wraps=datetime.datetime
@@ -168,7 +168,7 @@ class TestSPEC0Quarter:
             mock_datetime.utcnow.return_value = fixed_now
 
             spec_quarter = SPEC0Quarter(n_months=24, python_override=False)
-            supported = spec_quarter._get_minimum_supported("foo", releases)
+            supported = spec_quarter.filter("foo", releases)
 
             expected = releases[1:]
 

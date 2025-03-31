@@ -12,14 +12,6 @@ class ReleaseFilter:
     def filter(self, package, releases): ...
 
 
-# class NEP29(ReleaseFilter):
-#     def __init__(self, n_versions=3, n_months=24, python_override=True):
-#         self.n_versions = n_versions
-#         self.n_months = n_months
-
-#     def filter(self, package, releases): ...
-
-
 # utils/dates
 def get_quarter(date):
     """Convert a date to a quarter as tuple (year, quarter).
@@ -122,6 +114,9 @@ class SPEC0(ReleaseFilter):
 
     def drop_date(self, package, release):
         raise NotImplementedError()
+
+    def filter(self, package, releases):
+        return self._get_minimum_supported(package, releases)
 
 
 class SPEC0StrictDate(SPEC0):
