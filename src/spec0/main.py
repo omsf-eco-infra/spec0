@@ -30,7 +30,8 @@ def main(package, sources=None, filter_=None):
         "package": package,
         "releases": [
             {
-                "release": release,
+                "version": release.version,
+                "release-date": release.release_date,
                 "drop-date": filter_.drop_date(package, release),
             }
             for release in filtered.values()
@@ -46,16 +47,14 @@ def _major_minor_str(version):
     return major_minor_str
 
 
-def terminal_output(releases, release_date=True, drop_date=True):
-    package = releases["package"]
+def terminal_output(pkg_info, release_date=True, drop_date=True):
+    package = pkg_info["package"]
     release_names = [
-        f"{package} {_major_minor_str(release['release'].version)}"
-        for release in releases["releases"]
+        f"{package} {_major_minor_str(release['version'])}"
+        for release in pkg_info["releases"]
     ]
-    release_dates = [
-        release["release"].release_date for release in releases["releases"]
-    ]
-    drop_dates = [release["drop-date"] for release in releases["releases"]]
+    release_dates = [release["release-date"] for release in pkg_info["releases"]]
+    drop_dates = [release["drop-date"] for release in pkg_info["releases"]]
     name_width = max(len("Package"), max(len(name) for name in release_names))
     date_format = "%Y-%m-%d"
     if release_date:
