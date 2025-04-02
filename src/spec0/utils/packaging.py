@@ -8,7 +8,7 @@ def make_specifier(pkg_info, include_upper_bound=True):
     spec = SpecifierSet(f">={min_version}")
     if include_upper_bound:
         max_version = max(versions)
-        upper = Version(f"{max_version.major + 1}.0")
+        upper = Version(f"{max_version.epoch}!{max_version.major + 1}.0")
         spec = spec & SpecifierSet(f"<{upper}")
     return spec
 

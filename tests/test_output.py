@@ -5,10 +5,9 @@ from packaging.version import Version
 import datetime
 
 
-@pytest.mark.parametrize("release_date", [True, False])
-@pytest.mark.parametrize("drop_date", [True, False])
-def test_terminal_output_combined(capsys, release_date, drop_date):
-    pkg_info = {
+@pytest.fixture
+def pkg_info():
+    return {
         "package": "mypackage",
         "releases": [
             {
@@ -24,6 +23,45 @@ def test_terminal_output_combined(capsys, release_date, drop_date):
         ],
     }
 
+
+def test_json_output(capsys, pkg_info):
+    json_output(pkg_info)
+    captured = capsys.readouterr().out
+    output_dict = json.loads(captured)
+    expected = {
+        "package": "mypackage",
+        "releases": [
+            {
+                "version": "1.0",
+                "release-date": "2020-01-01T00:00:00",
+                "drop-date": "2021-01-01T00:00:00",
+            },
+            {
+                "version": "1!2.3",
+                "release-date": "2020-02-02T00:00:00",
+                "drop-date": "2021-02-02T00:00:00",
+            },
+        ],
+    }
+    assert output_dict == expected
+
+
+@pytest.mark.parametrize(
+    "include_upper_bound, expected",
+    [
+        (True, "mypackage <1!3.0,>=1.0\n"),
+        (False, "mypackage >=1.0\n"),
+    ],
+)
+def test_specifier_output(capsys, pkg_info, include_upper_bound, expected):
+    specifier_output(pkg_info, include_upper_bound=include_upper_bound)
+    captured = capsys.readouterr().out
+    assert captured == expected
+
+
+@pytest.mark.parametrize("release_date", [True, False])
+@pytest.mark.parametrize("drop_date", [True, False])
+def test_terminal_output_combined(capsys, pkg_info, release_date, drop_date):
     terminal_output(pkg_info, release_date=release_date, drop_date=drop_date)
     captured = capsys.readouterr().out
     header_line, _, first_row, second_row = captured.splitlines()
