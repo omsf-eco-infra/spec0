@@ -1,6 +1,10 @@
 from spec0.releasesource import PyPIReleaseSource, CondaReleaseSource
 from spec0.releasefilters import SPEC0StrictDate
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 
 def default_sources():
     return [
@@ -26,7 +30,7 @@ def main(package, sources=None, filter_=None):
             break
 
     filtered = filter_.filter(package, releases)
-    return {
+    result = {
         "package": package,
         "releases": [
             {
@@ -37,50 +41,5 @@ def main(package, sources=None, filter_=None):
             for release in filtered.values()
         ],
     }
-
-
-def _major_minor_str(version):
-    major_minor_str = f"{version.major}.{version.minor}"
-    if version.epoch != 0:
-        major_minor_str = f"{version.epoch}!{major_minor_str}"
-
-    return major_minor_str
-
-
-def terminal_output(pkg_info, release_date=True, drop_date=True):
-    package = pkg_info["package"]
-    release_names = [
-        f"{package} {_major_minor_str(release['version'])}"
-        for release in pkg_info["releases"]
-    ]
-    release_dates = [release["release-date"] for release in pkg_info["releases"]]
-    drop_dates = [release["drop-date"] for release in pkg_info["releases"]]
-    name_width = max(len("Package"), max(len(name) for name in release_names))
-    date_format = "%Y-%m-%d"
-    if release_date:
-        release_date_width = len("Release Date")
-    else:
-        release_date_width = 0
-
-    if drop_date:
-        drop_date_width = 10  # YYYY-MM-DD ; longer than "Drop Date"
-    else:
-        drop_date_width = 0
-
-    # print header
-    line = f"{'Package':<{name_width}}"
-    if release_date:
-        line += f" | {'Release Date':<{release_date_width}}"
-    if drop_date:
-        line += f" | {'Drop Date':<{drop_date_width}}"
-
-    print(line)
-    print("-" * len(line))
-    for name, date_release, date_drop in zip(release_names, release_dates, drop_dates):
-        line = f"{name:<{name_width}}"
-        if release_date:
-            line += f" | {date_release.strftime(date_format):<{release_date_width}}"
-        if drop_date:
-            line += f" | {date_drop.strftime(date_format):<{drop_date_width}}"
-
-        print(line)
+    _logger.info(result)
+    return result

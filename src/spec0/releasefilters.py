@@ -7,6 +7,10 @@ from packaging.version import Version
 
 from .releasesource import Release
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 
 class ReleaseFilter:
     def filter(self, package, releases): ...
@@ -108,6 +112,10 @@ class SPEC0(ReleaseFilter):
         for key, release in oldest_minor_release.items():
             drop_date = self.drop_date(package, release)
             if now < drop_date:
+                _logger.debug(
+                    f"Supporting {key} until {drop_date}, release date: "
+                    f"{release.release_date}"
+                )
                 supported[key] = release
 
         return supported
