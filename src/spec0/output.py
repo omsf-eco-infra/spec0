@@ -1,27 +1,7 @@
 import json
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from datetime import datetime
-
-
-# TODO: move this to utils
-def make_specifier(pkg_info, include_upper_bound=True):
-    versions = [release["version"] for release in pkg_info["releases"]]
-    min_version = min(versions)
-    spec = SpecifierSet(f">={min_version}")
-    if include_upper_bound:
-        max_version = max(versions)
-        upper = Version(f"{max_version.major + 1}.0")
-        spec = spec & SpecifierSet(f"<{upper}")
-    return spec
-
-
-def _major_minor_str(version):
-    major_minor_str = f"{version.major}.{version.minor}"
-    if version.epoch != 0:
-        major_minor_str = f"{version.epoch}!{major_minor_str}"
-
-    return major_minor_str
+from .utils.packaging import make_specifier, major_minor_str
 
 
 def json_output(pkg_info):
@@ -43,7 +23,7 @@ def specifier_output(pkg_info, include_upper_bound=True):
 def terminal_output(pkg_info, release_date=True, drop_date=True):
     package = pkg_info["package"]
     release_names = [
-        f"{package} {_major_minor_str(release['version'])}"
+        f"{package} {major_minor_str(release['version'])}"
         for release in pkg_info["releases"]
     ]
     release_dates = [release["release-date"] for release in pkg_info["releases"]]
