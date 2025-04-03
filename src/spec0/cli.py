@@ -10,6 +10,7 @@ from spec0.main import main
 
 
 def make_parser():
+    """Make the command line parser for the spec0 CLI."""
     parser = argparse.ArgumentParser(
         prog="spec0",
         description=(
@@ -100,12 +101,19 @@ def make_parser():
     output.add_argument(
         "--output-specifier",
         action="store_true",
-        help="Output the results as a version specifier, e.g. '>=1.2",
+        help="Output the results as a version specifier, e.g. '>=1.2'",
     )
     return parser
 
 
 def select_source(opts):
+    """Use CLI arguments to select the source of the release information.
+
+    Parameters
+    ----------
+    opts : argparse.Namespace
+        The command line arguments.
+    """
     selected_pypi = opts.pypi
     selected_conda = opts.conda_channel is not None
     # selected_github = opts.github
@@ -126,6 +134,13 @@ def select_source(opts):
 
 
 def select_filter(opts):
+    """Use CLI arguments to select the support filter.
+
+    Parameters
+    ----------
+    opts : argparse.Namespace
+        The command line arguments.
+    """
     if opts.filter == "spec0":
         filter_ = SPEC0StrictDate(opts.n_months)
     elif opts.filter == "spec0quarterly":
@@ -134,6 +149,13 @@ def select_filter(opts):
 
 
 def select_output(opts):
+    """Use CLI arguments to select the output format.
+
+    Parameters
+    ----------
+    opts : argparse.Namespace
+        The command line arguments.
+    """
     n_selected = sum([opts.output_json, opts.output_specifier])
     if n_selected == 0:
         if not opts.output_columns:

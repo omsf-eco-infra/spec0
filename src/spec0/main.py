@@ -7,6 +7,7 @@ _logger = logging.getLogger(__name__)
 
 
 def default_sources():
+    """Default release sources if none are provided."""
     return [
         PyPIReleaseSource(),
         CondaReleaseSource(["conda-forge/noarch", "conda-forge/linux-64"]),
@@ -14,10 +15,33 @@ def default_sources():
 
 
 def default_filter():
+    """Default support filter if none is provided."""
     return SPEC0StrictDate()
 
 
 def main(package, sources=None, filter_=None):
+    """Main function to get release info for a package.
+
+    Parameters
+    ----------
+    package : str
+        The name of the package to get release info for.
+    sources : list, optional
+        A list of release sources to use. If None, default sources are used.
+    filter_ : ReleaseFilter, optional
+        A release filter to use. If None, default filter is used.
+
+    Returns
+    -------
+    pkg_info : dict
+        A dictionary describing the support requirements. This is a dict key
+        with keys "package" and "releases". The value of "package" is the
+        name of the package. The value of "releases" is a list of dicts with
+        keys "version", "release-date", and "drop-date", where "version" is
+        the packaging.version.Version of the release, "release-date" is the
+        (datetime) release date of the release, and "drop-date" is the
+        (datetime) drop date of the release, according to the input filter.
+    """
     if sources is None:
         sources = default_sources()
 
