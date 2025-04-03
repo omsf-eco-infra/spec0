@@ -178,7 +178,7 @@ def select_output(opts):
     return output
 
 
-if __name__ == "__main__":
+def cli_main():
     parser = make_parser()
     opts = parser.parse_args()
     # maybe in the future be a little more precise in setting logging to our
@@ -191,3 +191,7 @@ if __name__ == "__main__":
 
     results = main(opts.package, sources, filter_)
     output(results)
+
+
+if __name__ == "__main__":
+    cli_main()
