@@ -38,6 +38,9 @@ dev = [
   "pre-commit",
 ]
 
+[project.scripts]
+spec0 = "spec0.cli:cli_main"
+
 [tool.setuptools]
 packages = ["spec0"]
 package-dir = { "" = "src" }
