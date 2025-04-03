@@ -10,31 +10,98 @@ from spec0.main import main
 
 
 def make_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("package")
-    parser.add_argument("--log-level", default="WARNING")
+    parser = argparse.ArgumentParser(
+        prog="spec0",
+        description=(
+            "List versions of a given package that should be supported "
+            "according to spec0-style rules. This can be customized in "
+            "3 ways: the source of the release information, the filter "
+            "that defines supported versions, and the output format."
+            "By default, we search first if this package is known as "
+            "a GitHub release, then we check for it on PyPI, and finally "
+            "on conda-forge (in noarch are linux-64). The default uses "
+            "SPEC0 according to the exact date of the release, and outputs "
+            "as a table with release dates and drop dates."
+        ),
+    )
+    parser.add_argument("package", help="Python package to look up")
+    parser.add_argument(
+        "--log-level",
+        default="WARNING",
+        help="Set the logging level (default: WARNING)",
+    )
 
-    source = parser.add_argument_group("Source")
-    source.add_argument("--pypi", action="store_true")
-    source.add_argument("--conda-channel")
-    source.add_argument("--conda-arch", nargs="+", default=["noarch", "linux-64"])
+    source = parser.add_argument_group(
+        "Source",
+        description=(
+            "Select the source of the release information. Only one source "
+            "can be selected."
+        ),
+    )
+    source.add_argument(
+        "--pypi",
+        action="store_true",
+        help="Use PyPI (only) as the source for release information",
+    )
+    source.add_argument(
+        "--conda-channel",
+        type=str,
+        help="Use a conda channel as the source for release information",
+    )
+    source.add_argument(
+        "--conda-arch",
+        nargs="+",
+        default=["noarch", "linux-64"],
+        help=("Conda architectures to check, only used if conda-channel is specified"),
+    )
     # source.add_argument('--github', action='store_true')
 
     # filter options
-    filterg = parser.add_argument_group("Filter")
-    filterg.add_argument(
-        "--filter", choices=["spec0", "spec0quarterly"], default="spec0"
+    filterg = parser.add_argument_group(
+        "Filter",
+        description=("Select the filter to select which releases are supported."),
     )
-    filterg.add_argument("--n-months", type=int, default=24)
+    filterg.add_argument(
+        "--filter",
+        choices=["spec0", "spec0quarterly"],
+        default="spec0",
+        help="Filter type to apply to release data",
+    )
+    filterg.add_argument(
+        "--n-months",
+        type=int,
+        default=24,
+        help="Number of months to support releases (default: 24)",
+    )
 
     # output options
-    output = parser.add_argument_group("Output")
-    output.add_argument(
-        "--output-columns", nargs="+", default=["package", "release-date", "drop-date"]
+    output = parser.add_argument_group(
+        "Output",
+        description=(
+            "Select the output format. Only one output can be selected. "
+            "output-columns selects the columns to be printed in the table, "
+            "and is ignored if output-json or output-specifier is selected."
+        ),
     )
-    output.add_argument("--output-json", action="store_true")
-    output.add_argument("--output-specifier", action="store_true")
-
+    output.add_argument(
+        "--output-columns",
+        action="append",
+        choices=["release-date", "drop-date"],
+        help=(
+            "Columns to include in the output table. Package (including "
+            "version) is always included."
+        ),
+    )
+    output.add_argument(
+        "--output-json",
+        action="store_true",
+        help="Output the results as JSON",
+    )
+    output.add_argument(
+        "--output-specifier",
+        action="store_true",
+        help="Output the results as a version specifier, e.g. '>=1.2",
+    )
     return parser
 
 
@@ -69,8 +136,11 @@ def select_filter(opts):
 def select_output(opts):
     n_selected = sum([opts.output_json, opts.output_specifier])
     if n_selected == 0:
-        release_date = "Release Date" in opts.output_columns
-        drop_date = "Drop Date" in opts.output_columns
+        if not opts.output_columns:
+            # default
+            opts.output_columns = ["package", "release-date", "drop-date"]
+        release_date = "release-date" in opts.output_columns
+        drop_date = "drop-date" in opts.output_columns
         output = partial(
             terminal_output, release_date=release_date, drop_date=drop_date
         )
@@ -81,7 +151,7 @@ def select_output(opts):
             output = json_output
         elif opts.output_specifier:
             output = specifier_output
-        else:
+        else:  # pragma: no cover
             raise RuntimeError("This should never happen")
     return output
 
