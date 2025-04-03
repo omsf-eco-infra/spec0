@@ -1,4 +1,5 @@
 import pytest
+import json
 
 from spec0.output import *
 from packaging.version import Version
