@@ -19,7 +19,8 @@ def json_output(pkg_info):
             return str(obj)
         elif isinstance(obj, datetime):
             return obj.isoformat()
-        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+        else:  # pragma: no cover
+            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     print(json.dumps(pkg_info, indent=4, default=default))
 

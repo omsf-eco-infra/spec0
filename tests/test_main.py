@@ -87,3 +87,14 @@ def test_main_uses_second_source_when_first_returns_none():
     assert result["package"] == "testpkg"
     assert isinstance(result["releases"], list)
     assert len(result["releases"]) == 1
+
+
+def test_main_default():
+    # smoke test for integration with default params
+    results = main("numpy")
+    assert results["package"] == "numpy"
+    assert len(results["releases"]) > 0
+    recent_release = results["releases"][0]
+    assert isinstance(recent_release["version"], Version)
+    assert isinstance(recent_release["release-date"], datetime.datetime)
+    assert isinstance(recent_release["drop-date"], datetime.datetime)
