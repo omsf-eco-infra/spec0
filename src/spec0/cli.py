@@ -181,7 +181,9 @@ def select_output(opts):
 if __name__ == "__main__":
     parser = make_parser()
     opts = parser.parse_args()
-    logging.basicConfig(level=opts.log_level)  # eww
+    # maybe in the future be a little more precise in setting logging to our
+    # loggers, not the root logger
+    logging.basicConfig(level=opts.log_level)
 
     sources = select_source(opts)
     filter_ = select_filter(opts)
