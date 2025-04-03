@@ -41,11 +41,9 @@ def shift_date_by_months(date, n_months):
         new_date = date.replace(year=new_year, month=new_month, day=date.day)
     except ValueError:
         # If the target month doesn't have the original day (e.g. February 31),
-        # shift to the first day of the next month.
-        if new_month == 12:
-            new_year += 1
-            new_month = 1
-        else:
-            new_month += 1
+        # shift to the first day of the next month. (In principle, we could
+        # need special casing for December to also bump to the new year, but
+        # since no month has more days than December, we're okay with this.)
+        new_month += 1
         new_date = date.replace(year=new_year, month=new_month, day=1)
     return new_date
