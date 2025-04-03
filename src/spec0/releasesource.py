@@ -74,17 +74,16 @@ class PyPIReleaseSource(ReleaseSource):
 
 
 class GitHubReleaseSource(ReleaseSource):
-    """Class to fetch all GitHub releases for a given repository using the GitHub GraphQL API."""
+    """
+    Class to fetch all GitHub releases for a given repository using the GitHub GraphQL API.
+
+    Parameters
+    ----------
+    github_token : str
+        Personal access token (PAT) with permissions to query the desired repository.
+    """
 
     def __init__(self, github_token: str):
-        """
-        Initialize the release source with a GitHub token.
-
-        Parameters
-        ----------
-        github_token : str
-            Personal access token (PAT) with permissions to query the desired repository.
-        """
         self.github_token = github_token
 
     def _get_releases(self, owner_repo: str):
