@@ -1,3 +1,11 @@
+"""
+Release Sources
+
+A release source is a source of package releases. This is a repository, such
+as PyPI, conda-forge, or GitHub, where we can get information about versions
+or a package and associated release dates.
+"""
+
 import dataclasses
 import datetime
 import json

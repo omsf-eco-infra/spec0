@@ -15,3 +15,5 @@ consists of command line tools as well as a Python API.
    :maxdepth: 2
    :caption: Contents:
 
+   reference/index
+
