@@ -4,6 +4,8 @@ import json
 import requests
 import warnings
 from packaging.version import Version, InvalidVersion
+import importlib.resources
+import collections
 
 from typing import Generator
 
@@ -80,7 +82,8 @@ class PyPIReleaseSource(ReleaseSource):
 
 class GitHubReleaseSource(ReleaseSource):
     """
-    Class to fetch all GitHub releases for a given repository using the GitHub GraphQL API.
+    Class to fetch all GitHub releases for a given repository using the GitHub GraphQL
+    API.
 
     Parameters
     ----------
@@ -90,8 +93,21 @@ class GitHubReleaseSource(ReleaseSource):
 
     def __init__(self, github_token: str):
         self.github_token = github_token
+        trav = importlib.resources.files("spec0")
+        jsonstr = trav.joinpath("data/github-releases.json").read_text()
+        self.canonical_sources = json.loads(jsonstr)
 
-    def _get_releases(self, owner_repo: str):
+    def _get_releases(self, package: str):
+        if collections.Counter(package).get("/") == 1:
+            owner_repo = package
+        elif package in self.canonical_sources:
+            owner_repo = self.canonical_sources[package]
+        else:
+            raise ValueError(f"GitHub repository for package '{package}' not found")
+
+        yield from self._get_releases_owner_repo(owner_repo)
+
+    def _get_releases_owner_repo(self, owner_repo: str):
         """
         Generate all releases for a repository in descending order of
         creation date (most recent first).

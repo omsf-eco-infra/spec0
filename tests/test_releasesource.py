@@ -248,8 +248,9 @@ MOCK_GH_RESPONSE_PAGE2 = {
 
 
 class TestGitHubReleaseSource:
+    @pytest.mark.parametrize("inputstr", ["octohello", "octocat/Hello-World"])
     @responses.activate
-    def test_valid_only_versions(self):
+    def test_valid_only_versions(self, inputstr):
         """Test that valid versions are parsed and returned in descending order."""
         url = "https://api.github.com/graphql"
         responses.add(
@@ -261,7 +262,8 @@ class TestGitHubReleaseSource:
 
         token = "FAKE_TOKEN"
         source = GitHubReleaseSource(token)
-        releases = list(source._get_releases("octocat/Hello-World"))
+        source.canonical_sources["octohello"] = "octocat/Hello-World"
+        releases = list(source.get_releases(inputstr))
 
         # Verify the number of releases.
         assert len(releases) == 3
@@ -294,7 +296,7 @@ class TestGitHubReleaseSource:
         with pytest.warns(UserWarning, match="Skipping invalid version"):
             warnings.simplefilter("always")
             source = GitHubReleaseSource(token)
-            releases = list(source._get_releases("octocat/Hello-World"))
+            releases = list(source._get_releases_owner_repo("octocat/Hello-World"))
 
         # Only the valid versions should be returned.
         assert len(releases) == 2
@@ -331,7 +333,7 @@ class TestGitHubReleaseSource:
 
         token = "FAKE_TOKEN"
         source = GitHubReleaseSource(token)
-        releases = list(source._get_releases("octocat/Hello-World"))
+        releases = list(source._get_releases_owner_repo("octocat/Hello-World"))
 
         # We expect 4 releases total.
         assert len(releases) == 4
@@ -361,7 +363,7 @@ class TestGitHubReleaseSource:
         """
         token = os.environ["GITHUB_TOKEN"]
         source = GitHubReleaseSource(token)
-        releases = list(source._get_releases("openpathsampling/openpathsampling"))
+        releases = list(source.get_releases("openpathsampling/openpathsampling"))
         assert len(releases) > 0
         release_dates = [r.release_date for r in releases]
         assert_is_descending(release_dates)
