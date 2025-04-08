@@ -26,6 +26,7 @@ classifiers = [
 keywords = ["spec0", "package support", "cli"]
 
 dependencies = [
+  "packaging",
   "requests",
 ]
 
@@ -37,6 +38,9 @@ dev = [
   "ruff",
   "pre-commit",
 ]
+
+[project.scripts]
+spec0 = "spec0.cli:cli_main"
 
 [tool.setuptools]
 packages = ["spec0"]
