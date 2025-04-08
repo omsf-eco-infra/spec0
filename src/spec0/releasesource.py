@@ -9,6 +9,10 @@ from typing import Generator
 
 from spec0.cacheddownload import get_file, CACHE_DIR
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 
 @dataclasses.dataclass
 class Release:
@@ -36,6 +40,7 @@ class PyPIReleaseSource(ReleaseSource):
 
     def _get_releases(self, package: str) -> Generator[Release, None, None]:
         url = f"https://pypi.org/pypi/{package}/json"
+        _logger.debug(f"Fetching {url}")
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
@@ -64,9 +69,9 @@ class PyPIReleaseSource(ReleaseSource):
 
             # Only add to list if we successfully found an upload date
             if earliest_date is not None:
-                release_list.append(
-                    Release(version=parsed_version, release_date=earliest_date)
-                )
+                release = Release(version=parsed_version, release_date=earliest_date)
+                _logger.debug(f"Found release: {release}")
+                release_list.append(release)
 
         release_list.sort(key=lambda r: r.release_date, reverse=True)
         for release in release_list:
