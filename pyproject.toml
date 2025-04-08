@@ -26,6 +26,7 @@ classifiers = [
 keywords = ["spec0", "package support", "cli"]
 
 dependencies = [
+  "packaging",
   "requests",
 ]
 
