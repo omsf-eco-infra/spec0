@@ -4,6 +4,7 @@ from packaging.version import Version
 from unittest.mock import patch
 
 from spec0.releasefilters import *
+from spec0.releasesource import NoReleaseFound
 
 read_datetime = datetime.datetime
 
@@ -104,6 +105,15 @@ class TestSPEC0StrictDate:
                 )
                 assert key in supported
 
+    def test_filter_empty_releases(self):
+        package_name = "nonexistent-package"
+        spec_strict = SPEC0StrictDate()
+
+        with pytest.raises(
+            NoReleaseFound, match=f"No releases found for package '{package_name}'"
+        ):
+            spec_strict.filter(package_name, [])
+
     @pytest.mark.parametrize("python_override", [True, False])
     @pytest.mark.parametrize("package", ["foo", "python"])
     def test_drop_date(self, python_override, package):
@@ -140,6 +150,15 @@ class TestSPEC0Quarter:
                     release.version.minor,
                 )
                 assert key in supported
+
+    def test_filter_empty_releases(self):
+        package_name = "nonexistent-package"
+        spec_quarter = SPEC0Quarter()
+
+        with pytest.raises(
+            NoReleaseFound, match=f"No releases found for package '{package_name}'"
+        ):
+            spec_quarter.filter(package_name, [])
 
     @pytest.mark.parametrize("python_override", [True, False])
     @pytest.mark.parametrize("package", ["foo", "python"])

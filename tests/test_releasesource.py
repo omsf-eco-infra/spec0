@@ -475,6 +475,37 @@ class TestGitHubReleaseSource:
         with pytest.raises(NoReleaseFound, match=expected_message):
             list(source._get_releases(package))
 
+    @responses.activate
+    def test_get_releases_no_releases_found(self):
+        """Test that a NoReleaseFound exception is raised when a GitHub repository exists but has no releases."""
+        url = "https://api.github.com/graphql"
+        # Mock an empty response with no releases
+        empty_response = {
+            "data": {
+                "repository": {
+                    "refs": {
+                        "pageInfo": {"endCursor": None, "hasNextPage": False},
+                        "nodes": [],
+                    }
+                }
+            }
+        }
+        responses.add(
+            responses.POST,
+            url,
+            json=empty_response,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+
+        expected_message = (
+            "No releases found for GitHub repository 'octocat/empty-repo'"
+        )
+        with pytest.raises(NoReleaseFound, match=expected_message):
+            list(source._get_releases_owner_repo("octocat/empty-repo"))
+
 
 def make_release(version: str, date_str: str):
     dt = datetime.datetime.fromisoformat(date_str).replace(tzinfo=datetime.timezone.utc)

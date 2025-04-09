@@ -203,6 +203,8 @@ class GitHubReleaseSource(ReleaseSource):
         has_next_page = True
         after_cursor = None
 
+        found_package = False
+
         while has_next_page:
             variables = {
                 "owner": owner,
@@ -234,9 +236,15 @@ class GitHubReleaseSource(ReleaseSource):
                     datestr.replace("Z", "+00:00")
                 )
                 yield Release(version, release_date)
+                found_package = True
 
             has_next_page = releases_data["pageInfo"]["hasNextPage"]
             after_cursor = releases_data["pageInfo"]["endCursor"]
+
+        if not found_package:
+            raise NoReleaseFound(
+                f"No releases found for GitHub repository '{owner_repo}'"
+            )
 
 
 class CondaReleaseSource(ReleaseSource):
