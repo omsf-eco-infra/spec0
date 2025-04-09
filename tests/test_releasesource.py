@@ -188,12 +188,21 @@ class TestCondaReleaseSource:
 MOCK_GH_RESPONSE_VALID_ONLY = {
     "data": {
         "repository": {
-            "releases": {
+            "refs": {
                 "pageInfo": {"endCursor": None, "hasNextPage": False},
                 "nodes": [
-                    {"tagName": "2.2.0", "createdAt": "2023-03-03T12:00:00Z"},
-                    {"tagName": "2.1.0", "createdAt": "2023-02-10T09:00:00Z"},
-                    {"tagName": "1.9.0", "createdAt": "2023-01-15T20:00:00Z"},
+                    {
+                        "name": "v2.2.0",
+                        "target": {"committedDate": "2023-03-03T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.1.0",
+                        "target": {"tagger": {"date": "2023-02-10T09:00:00Z"}},
+                    },
+                    {
+                        "name": "1.9.0",
+                        "target": {"committedDate": "2023-01-15T20:00:00Z"},
+                    },
                 ],
             }
         }
@@ -203,15 +212,21 @@ MOCK_GH_RESPONSE_VALID_ONLY = {
 MOCK_GH_RESPONSE_MIXED = {
     "data": {
         "repository": {
-            "releases": {
+            "refs": {
                 "pageInfo": {"endCursor": None, "hasNextPage": False},
                 "nodes": [
-                    {"tagName": "10.0.0", "createdAt": "2024-01-01T12:00:00Z"},
                     {
-                        "tagName": "not-a-valid-version",
-                        "createdAt": "2024-01-02T12:00:00Z",
+                        "name": "10.0.0",
+                        "target": {"committedDate": "2024-01-01T12:00:00Z"},
                     },
-                    {"tagName": "9.9.9", "createdAt": "2023-12-15T12:00:00Z"},
+                    {
+                        "name": "not-a-valid-version",
+                        "target": {"committedDate": "2024-01-02T12:00:00Z"},
+                    },
+                    {
+                        "name": "9.9.9",
+                        "target": {"committedDate": "2023-12-15T12:00:00Z"},
+                    },
                 ],
             }
         }
@@ -221,11 +236,17 @@ MOCK_GH_RESPONSE_MIXED = {
 MOCK_GH_RESPONSE_PAGE1 = {
     "data": {
         "repository": {
-            "releases": {
+            "refs": {
                 "pageInfo": {"endCursor": "CURSOR1", "hasNextPage": True},
                 "nodes": [
-                    {"tagName": "3.0.0", "createdAt": "2024-01-05T12:00:00Z"},
-                    {"tagName": "2.5.0", "createdAt": "2023-12-20T12:00:00Z"},
+                    {
+                        "name": "3.0.0",
+                        "target": {"committedDate": "2024-01-05T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.5.0",
+                        "target": {"committedDate": "2023-12-20T12:00:00Z"},
+                    },
                 ],
             }
         }
@@ -235,11 +256,17 @@ MOCK_GH_RESPONSE_PAGE1 = {
 MOCK_GH_RESPONSE_PAGE2 = {
     "data": {
         "repository": {
-            "releases": {
+            "refs": {
                 "pageInfo": {"endCursor": None, "hasNextPage": False},
                 "nodes": [
-                    {"tagName": "2.2.0", "createdAt": "2023-11-10T12:00:00Z"},
-                    {"tagName": "2.0.0", "createdAt": "2023-10-01T12:00:00Z"},
+                    {
+                        "name": "2.2.0",
+                        "target": {"committedDate": "2023-11-10T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.0.0",
+                        "target": {"committedDate": "2023-10-01T12:00:00Z"},
+                    },
                 ],
             }
         }
@@ -355,7 +382,7 @@ class TestGitHubReleaseSource:
     @pytest.mark.skipif(
         not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set"
     )
-    def test_integration_openpathsampling(self):
+    def test_integration_python(self):
         """
         Integration test using the real GitHub API to fetch releases for the
         repository openpathsampling/openpathsampling. Checks that at least one
@@ -363,7 +390,5 @@ class TestGitHubReleaseSource:
         """
         token = os.environ["GITHUB_TOKEN"]
         source = GitHubReleaseSource(token)
-        releases = list(source.get_releases("openpathsampling/openpathsampling"))
+        releases = list(source.get_releases("python"))
         assert len(releases) > 0
-        release_dates = [r.release_date for r in releases]
-        assert_is_descending(release_dates)

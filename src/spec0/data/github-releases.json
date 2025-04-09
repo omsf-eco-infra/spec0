@@ -1,3 +1,4 @@
 {
-    "rust":  "rust-lang/rust"
+    "rust":  "rust-lang/rust",
+    "python": "python/cpython"
 }

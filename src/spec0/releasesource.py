@@ -134,14 +134,28 @@ class GitHubReleaseSource(ReleaseSource):
         query = """
         query($owner: String!, $repo: String!, $after: String) {
           repository(owner: $owner, name: $repo) {
-            releases(first: 100, after: $after, orderBy: {field: CREATED_AT, direction: DESC}) {
+            refs(after:$after, first:100, refPrefix:"refs/tags/", orderBy:{field:TAG_COMMIT_DATE, direction:DESC}) {
+
               pageInfo {
                 endCursor
                 hasNextPage
               }
+
               nodes {
-                tagName
-                createdAt
+                name
+
+                target {
+                  # looks like this is what you get if you create the tag in the UI
+                  ... on Commit {
+                    committedDate
+                  }
+                  # and this is if you don't? or something?
+                  ... on Tag {
+                    tagger {
+                      date
+                    }
+                  }
+                }
               }
             }
           }
@@ -169,18 +183,23 @@ class GitHubReleaseSource(ReleaseSource):
             response.raise_for_status()
 
             data = response.json()
-            releases_data = data["data"]["repository"]["releases"]
+            releases_data = data["data"]["repository"]["refs"]
 
             for node in releases_data["nodes"]:
-                tag_name = node["tagName"]
+                tag_name = node["name"]
                 try:
                     version = Version(tag_name)
                 except InvalidVersion:
                     warnings.warn(f"Skipping invalid version: {tag_name}", UserWarning)
                     continue  # Skip this release
 
+                if "tagger" in node["target"]:
+                    datestr = node["target"]["tagger"]["date"]
+                else:
+                    datestr = node["target"]["committedDate"]
+
                 release_date = datetime.datetime.fromisoformat(
-                    node["createdAt"].replace("Z", "+00:00")
+                    datestr.replace("Z", "+00:00")
                 )
                 yield Release(version, release_date)
 
