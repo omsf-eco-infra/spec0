@@ -110,6 +110,29 @@ class TestPyPIReleaseSource:
         with pytest.raises(exception_class):
             list(source.get_releases("nonexistent-package"))
 
+    @responses.activate
+    def test_get_release_no_release(self):
+        """
+        Test that the PyPIReleaseSource correctly handles packages that exist but have no releases.
+        It should raise a NoReleaseFound exception.
+        """
+        url = "https://pypi.org/pypi/package-with-no-releases/json"
+        # Create a mock response with an empty releases dictionary
+        responses.add(
+            method=responses.GET,
+            url=url,
+            json={"releases": {}},
+            status=200,
+        )
+
+        source = PyPIReleaseSource()
+
+        with pytest.raises(
+            NoReleaseFound,
+            match="No releases found for package 'package-with-no-releases'",
+        ):
+            list(source.get_releases("package-with-no-releases"))
+
     @pytest.mark.parametrize("package_name", ["pandas", "numpy", "scipy"])
     @requires_internet
     def test_integration_packages(self, package_name):
@@ -436,6 +459,21 @@ class TestGitHubReleaseSource:
 
         result = source.is_github_package(package)
         assert result == expected
+
+    @pytest.mark.parametrize(
+        "package",
+        [
+            "unknown-package",
+            "too/many/slashes",
+        ],
+    )
+    def test_get_releases_not_found(self, package):
+        source = GitHubReleaseSource("FAKE_TOKEN")
+        source.canonical_sources = {"python": "python/cpython"}
+
+        expected_message = f"GitHub repository for package '{package}' not found"
+        with pytest.raises(NoReleaseFound, match=expected_message):
+            list(source._get_releases(package))
 
 
 def make_release(version: str, date_str: str):
