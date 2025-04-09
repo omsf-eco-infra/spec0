@@ -384,7 +384,7 @@ class TestGitHubReleaseSource:
     @pytest.mark.skipif(
         not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set"
     )
-    def test_integration_python(self):
+    def test_integration(self):
         """
         Integration test using the real GitHub API to fetch releases for the
         repository openpathsampling/openpathsampling. Checks that at least one
@@ -392,8 +392,9 @@ class TestGitHubReleaseSource:
         """
         token = os.environ["GITHUB_TOKEN"]
         source = GitHubReleaseSource(token)
-        releases = list(source.get_releases("python"))
-        assert len(releases) > 0
+        for package in source.canonical_sources:
+            releases = list(source.get_releases(package))
+            assert len(releases) > 0
 
 
 def make_release(version: str, date_str: str):
