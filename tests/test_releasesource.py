@@ -396,6 +396,25 @@ class TestGitHubReleaseSource:
             releases = list(source.get_releases(package))
             assert len(releases) > 0
 
+    @pytest.mark.parametrize(
+        "package,expected",
+        [
+            ("owner/repo", True),
+            ("python", True),
+            ("package-without-slash", False),
+            ("too/many/slashes", False),
+            ("", False),
+        ],
+    )
+    def test_is_github_package(self, package, expected):
+        """Test the is_github_package method with various inputs."""
+        source = GitHubReleaseSource("FAKE_TOKEN")
+        # Ensure the canonical_sources has expected entries
+        source.canonical_sources = {"python": "python/cpython"}
+
+        result = source.is_github_package(package)
+        assert result == expected
+
 
 def make_release(version: str, date_str: str):
     dt = datetime.datetime.fromisoformat(date_str).replace(tzinfo=datetime.timezone.utc)
