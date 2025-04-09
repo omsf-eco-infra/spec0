@@ -3,6 +3,8 @@ import responses
 import warnings
 import datetime
 import os
+from contextlib import ExitStack
+from unittest.mock import patch
 from packaging.version import Version
 
 from requires_internet import requires_internet
@@ -392,3 +394,135 @@ class TestGitHubReleaseSource:
         source = GitHubReleaseSource(token)
         releases = list(source.get_releases("python"))
         assert len(releases) > 0
+
+
+def make_release(version: str, date_str: str):
+    dt = datetime.datetime.fromisoformat(date_str).replace(tzinfo=datetime.timezone.utc)
+    return Release(Version(version), dt)
+
+
+class TestDefaultReleaseSource:
+    def test_get_releases_github(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = True
+            mock_github.get_releases.return_value = iter(
+                [make_release("1.0.0", "2023-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("somegithub/repo"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("1.0.0")
+            mock_github.get_releases.assert_called_once()
+            mock_pypi_cls.return_value.get_releases.assert_not_called()
+            mock_conda_cls.return_value.get_releases.assert_not_called()
+
+    def test_get_releases_pypi(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.return_value = iter(
+                [make_release("2.0.0", "2022-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("non-github-package"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("2.0.0")
+            mock_github.get_releases.assert_not_called()
+            mock_pypi.get_releases.assert_called_once()
+            mock_conda_cls.return_value.get_releases.assert_not_called()
+
+    def test_get_releases_conda(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.side_effect = NoReleaseFound("PyPI failed")
+
+            mock_conda = mock_conda_cls.return_value
+            mock_conda.get_releases.return_value = iter(
+                [make_release("3.0.0", "2021-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("fallback-package"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("3.0.0")
+            mock_github.get_releases.assert_not_called()
+            mock_pypi.get_releases.assert_called_once()
+            mock_conda.get_releases.assert_called_once()
+
+    def test_get_releases_fail(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.side_effect = NoReleaseFound("PyPI failed")
+
+            mock_conda = mock_conda_cls.return_value
+            mock_conda.get_releases.side_effect = NoReleaseFound("Conda failed")
+
+            source = DefaultReleaseSource("fake-token")
+
+            with pytest.raises(NoReleaseFound, match="Conda failed"):
+                list(source.get_releases("bad-package"))
+
+    def test_github_token_required(self, monkeypatch):
+        """Test that a ValueError is raised when no GitHub token is provided."""
+        # Ensure environment is clean
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+        # This will trigger the GitHub release path due to the slash
+        source = DefaultReleaseSource(github_token=None)
+
+        with pytest.raises(ValueError, match="GitHub token not provided"):
+            list(source.get_releases("someuser/someproject"))

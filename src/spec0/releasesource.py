@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import json
+import os
 import requests
 import warnings
 from packaging.version import Version, InvalidVersion
@@ -24,6 +25,10 @@ class Release:
     release_date: datetime.datetime
 
 
+class NoReleaseFound(Exception):
+    pass
+
+
 class ReleaseSource:
     """ABC for a source of package releases."""
 
@@ -44,7 +49,13 @@ class PyPIReleaseSource(ReleaseSource):
         url = f"https://pypi.org/pypi/{package}/json"
         _logger.debug(f"Fetching {url}")
         response = requests.get(url)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 404:
+                raise NoReleaseFound(f"No PyPI package '{package}'") from e
+            else:
+                raise
         data = response.json()
 
         releases_data = data.get("releases", {})
@@ -76,6 +87,8 @@ class PyPIReleaseSource(ReleaseSource):
                 release_list.append(release)
 
         release_list.sort(key=lambda r: r.release_date, reverse=True)
+        if not release_list:
+            raise NoReleaseFound(f"No releases found for package '{package}'")
         for release in release_list:
             yield release
 
@@ -97,13 +110,22 @@ class GitHubReleaseSource(ReleaseSource):
         jsonstr = trav.joinpath("data/github-releases.json").read_text()
         self.canonical_sources = json.loads(jsonstr)
 
+    def is_github_package(self, package: str) -> bool:
+        """Check if the package is a GitHub package."""
+        if collections.Counter(package).get("/") == 1:
+            return True
+        elif package in self.canonical_sources:
+            return True
+        else:
+            return False
+
     def _get_releases(self, package: str):
         if collections.Counter(package).get("/") == 1:
             owner_repo = package
         elif package in self.canonical_sources:
             owner_repo = self.canonical_sources[package]
         else:
-            raise ValueError(f"GitHub repository for package '{package}' not found")
+            raise NoReleaseFound(f"GitHub repository for package '{package}' not found")
 
         yield from self._get_releases_owner_repo(owner_repo)
 
@@ -161,6 +183,16 @@ class GitHubReleaseSource(ReleaseSource):
           }
         }
         """
+
+        token = self.github_token
+        if token is None:
+            token = os.environ.get("GITHUB_TOKEN")
+
+        if token is None:
+            raise ValueError(
+                "GitHub token not provided. Please set the GITHUB_TOKEN "
+                "environment variable."
+            )
 
         url = "https://api.github.com/graphql"
         headers = {
@@ -266,5 +298,44 @@ class CondaReleaseSource(ReleaseSource):
             key=lambda r: (r.release_date is None, r.release_date), reverse=True
         )
 
+        if not releases:
+            raise NoReleaseFound(f"No releases found for package '{package}'")
+
         for release_obj in releases:
             yield release_obj
+
+
+class DefaultReleaseSource(ReleaseSource):
+    """
+    Release source that tries (1) GitHub releases; (2) PyPI; (3) conda-forge.
+
+    Parameters
+    ----------
+    github_token : str
+        Personal access token (PAT) with permissions to query the desired repository.
+    """
+
+    def __init__(self, github_token: str = None):
+        self.github_source = GitHubReleaseSource(github_token)
+        self.pypi_source = PyPIReleaseSource()
+        self.conda_source = CondaReleaseSource(
+            [
+                "conda-forge/linux-64",
+                "conda-forge/noarch",
+            ]
+        )
+
+    def _get_releases(self, package: str) -> Generator[Release, None, None]:
+        # check whether the package should be a GitHub release, try GitHub if so
+        if self.github_source.is_github_package(package):
+            yield from self.github_source.get_releases(package)
+            return
+
+        try:
+            yield from self.pypi_source.get_releases(package)
+        except NoReleaseFound:  # TODO: handle exception
+            pass
+        else:
+            return
+
+        yield from self.conda_source.get_releases(package)

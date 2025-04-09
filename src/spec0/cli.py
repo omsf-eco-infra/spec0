@@ -8,6 +8,7 @@ from spec0.releasesource import (
     PyPIReleaseSource,
     CondaReleaseSource,
     GitHubReleaseSource,
+    DefaultReleaseSource,
 )
 from spec0.releasefilters import SPEC0StrictDate, SPEC0Quarter
 from spec0.output import terminal_output, json_output, specifier_output
@@ -123,24 +124,19 @@ def select_source(opts):
     selected_conda = opts.conda_channel is not None
     selected_github = opts.github
     n_selected = sum([selected_pypi, selected_conda, selected_github])
+    token = os.getenv("GITHUB_TOKEN")
     if n_selected == 0:
-        source = None
+        source = DefaultReleaseSource(token)
     elif n_selected > 1:
         raise ValueError("Only one source can be selected")
     else:
         if selected_pypi:
-            source = [PyPIReleaseSource()]
+            source = PyPIReleaseSource()
         elif selected_conda:
             platforms = [f"{opts.conda_channel}/{arch}" for arch in opts.conda_arch]
-            source = [CondaReleaseSource(platforms)]
+            source = CondaReleaseSource(platforms)
         elif selected_github:
-            if (token := os.getenv("GITHUB_TOKEN")) is None:
-                raise ValueError(
-                    "GITHUB_TOKEN environment variable must be set to use GitHub "
-                    "releases"
-                )
-
-            source = [GitHubReleaseSource(token)]
+            source = GitHubReleaseSource(token)
 
     return source
 
