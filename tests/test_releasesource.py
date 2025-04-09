@@ -88,6 +88,28 @@ class TestPyPIReleaseSource:
             datetime.datetime(2023, 12, 15, 12, 0, tzinfo=datetime.timezone.utc),
         ]
 
+    @pytest.mark.parametrize(
+        "status_code,exception_class",
+        [
+            (404, NoReleaseFound),
+            (503, requests.HTTPError),
+        ],
+    )
+    @responses.activate
+    def test_http_error_responses(self, status_code, exception_class):
+        url = "https://pypi.org/pypi/nonexistent-package/json"
+        responses.add(
+            method=responses.GET,
+            url=url,
+            body=f"Error {status_code}",
+            status=status_code,
+        )
+
+        source = PyPIReleaseSource()
+
+        with pytest.raises(exception_class):
+            list(source.get_releases("nonexistent-package"))
+
     @pytest.mark.parametrize("package_name", ["pandas", "numpy", "scipy"])
     @requires_internet
     def test_integration_packages(self, package_name):
