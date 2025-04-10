@@ -195,7 +195,7 @@ class GitHubReleaseSource(ReleaseSource):
 
         url = "https://api.github.com/graphql"
         headers = {
-            "Authorization": f"Bearer {self.github_token}",
+            "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github.v3+json",
         }
 
