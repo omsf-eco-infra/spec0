@@ -13,48 +13,15 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from .releasesource import Release
+from .utils.dates import next_quarter, quarter_to_date, shift_date_by_months
+
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class ReleaseFilter:
     def filter(self, package, releases): ...
-
-
-# utils/dates
-def get_quarter(date):
-    """Convert a date to a quarter as tuple (year, quarter).
-
-    Quarters are 1-indexed.
-    """
-    return (date.year, ((date.month - 1) // 3) + 1)
-
-
-def next_quarter(date):
-    """Get the next quarter after the given date."""
-    year, quarter = get_quarter(date)
-    quarter += 1
-    if quarter > 4:
-        quarter = 1
-        year += 1
-    return (year, quarter)
-
-
-def quarter_to_date(quarter):
-    """
-    Convert a quarter to the date associated with the start of that quarter.
-    """
-    year, quarter = quarter
-    return datetime.datetime(
-        year, (quarter - 1) * 3 + 1, 1, tzinfo=datetime.timezone.utc
-    )
-
-
-def shift_date_by_months(date, n_months):
-    """Shift a date by a number of months."""
-    # used to set the cutoff; if there's a better way to do this, go for it.
-    # Months are weird because they aren't all the same length.
-    dyears = n_months // 12
-    dmonths = n_months % 12
-    return date.replace(year=date.year + dyears, month=date.month + dmonths)
 
 
 def get_oldest_minor_release(releases: Iterable[Release]):
@@ -115,6 +82,10 @@ class SPEC0(ReleaseFilter):
         for key, release in oldest_minor_release.items():
             drop_date = self.drop_date(package, release)
             if now < drop_date:
+                _logger.debug(
+                    f"Supporting {key} until {drop_date}, release date: "
+                    f"{release.release_date}"
+                )
                 supported[key] = release
 
         return supported
