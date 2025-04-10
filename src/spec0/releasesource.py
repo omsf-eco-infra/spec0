@@ -6,7 +6,6 @@ import requests
 import warnings
 from packaging.version import Version, InvalidVersion
 import importlib.resources
-import collections
 
 from typing import Generator
 
@@ -112,7 +111,7 @@ class GitHubReleaseSource(ReleaseSource):
 
     def is_github_package(self, package: str) -> bool:
         """Check if the package is a GitHub package."""
-        if collections.Counter(package).get("/") == 1:
+        if package.count("/") == 1:
             return True
         elif package in self.canonical_sources:
             return True
@@ -120,7 +119,7 @@ class GitHubReleaseSource(ReleaseSource):
             return False
 
     def _get_releases(self, package: str):
-        if collections.Counter(package).get("/") == 1:
+        if package.count("/") == 1:
             owner_repo = package
         elif package in self.canonical_sources:
             owner_repo = self.canonical_sources[package]
