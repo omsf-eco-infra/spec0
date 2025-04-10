@@ -5,7 +5,7 @@ from typing import Iterable
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
-from .releasesource import Release
+from .releasesource import Release, NoReleaseFound
 from .utils.dates import next_quarter, quarter_to_date, shift_date_by_months
 
 import logging
@@ -66,7 +66,10 @@ class SPEC0(ReleaseFilter):
     def _get_minimum_supported(self, package: str, releases: Iterable[Release]):
         oldest_minor_release = get_oldest_minor_release(releases)
 
-        max_minor_release = max(oldest_minor_release)
+        try:
+            max_minor_release = max(oldest_minor_release)
+        except ValueError:  # no releases found; should be caught by source
+            raise NoReleaseFound(f"No releases found for package '{package}'")
         # always support at least the most recent minor release
         supported = {max_minor_release: oldest_minor_release[max_minor_release]}
 

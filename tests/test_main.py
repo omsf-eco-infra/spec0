@@ -1,7 +1,7 @@
 import datetime
 from packaging.version import Version
 
-from spec0.releasesource import PyPIReleaseSource, CondaReleaseSource, Release
+from spec0.releasesource import Release, DefaultReleaseSource
 from spec0.releasefilters import SPEC0StrictDate
 
 from spec0.main import *
@@ -34,15 +34,6 @@ class DummyFilter:
         return datetime.datetime(2021, 1, 1)
 
 
-def test_default_sources():
-    sources = default_sources()
-    assert isinstance(sources, list)
-    assert len(sources) == 2
-
-    assert isinstance(sources[0], PyPIReleaseSource)
-    assert isinstance(sources[1], CondaReleaseSource)
-
-
 def test_default_filter():
     filter_obj = default_filter()
     assert isinstance(filter_obj, SPEC0StrictDate)
@@ -50,20 +41,13 @@ def test_default_filter():
     assert filter_obj.python_override is True
 
 
-def test_main_uses_first_source_with_releases():
+def test_main():
     v = Version("1.0")
     release_date = datetime.datetime(2020, 1, 1)
     dummy_release = Release(v, release_date)
-
-    # The first source returns a valid releases dict.
-    # The second source should not be used.
-    source1 = DummySource({"r1": dummy_release})
-    v2 = Version("2.0")
-    source2 = DummySource({"r2": Release(v2, datetime.datetime(2020, 2, 2))})
-
+    source = DummySource({"r1": dummy_release})
     filter_obj = DummyFilter()
-    result = main("testpkg", sources=[source1, source2], filter_=filter_obj)
-
+    result = main("testpkg", source=source, filter_=filter_obj)
     assert result["package"] == "testpkg"
     assert isinstance(result["releases"], list)
     assert len(result["releases"]) == 1
@@ -73,25 +57,10 @@ def test_main_uses_first_source_with_releases():
     assert release_info["drop-date"] == datetime.datetime(2021, 1, 1)
 
 
-def test_main_uses_second_source_when_first_returns_none():
-    v = Version("1.0")
-    release_date = datetime.datetime(2020, 1, 1)
-    dummy_release = Release(v, release_date)
-
-    source1 = DummySource(None)
-    source2 = DummySource({"r1": dummy_release})
-
-    filter_obj = DummyFilter()
-    result = main("testpkg", sources=[source1, source2], filter_=filter_obj)
-
-    assert result["package"] == "testpkg"
-    assert isinstance(result["releases"], list)
-    assert len(result["releases"]) == 1
-
-
-def test_main_default():
+def test_main_integration():
     # smoke test for integration with default params
-    results = main("numpy")
+    source = DefaultReleaseSource()
+    results = main("numpy", source)
     assert results["package"] == "numpy"
     assert len(results["releases"]) > 0
     recent_release = results["releases"][0]

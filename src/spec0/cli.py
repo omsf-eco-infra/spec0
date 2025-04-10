@@ -1,9 +1,15 @@
 import argparse
 import logging
+import os
 
 from functools import partial
 
-from spec0.releasesource import PyPIReleaseSource, CondaReleaseSource
+from spec0.releasesource import (
+    PyPIReleaseSource,
+    CondaReleaseSource,
+    GitHubReleaseSource,
+    DefaultReleaseSource,
+)
 from spec0.releasefilters import SPEC0StrictDate, SPEC0Quarter
 from spec0.output import terminal_output, json_output, specifier_output
 from spec0.main import main
@@ -55,7 +61,7 @@ def make_parser():
         default=["noarch", "linux-64"],
         help=("Conda architectures to check, only used if conda-channel is specified"),
     )
-    # source.add_argument('--github', action='store_true')
+    source.add_argument("--github", action="store_true")
 
     # filter options
     filterg = parser.add_argument_group(
@@ -116,20 +122,22 @@ def select_source(opts):
     """
     selected_pypi = opts.pypi
     selected_conda = opts.conda_channel is not None
-    # selected_github = opts.github
-    n_selected = sum([selected_pypi, selected_conda])
+    selected_github = opts.github
+    n_selected = sum([selected_pypi, selected_conda, selected_github])
+    token = os.getenv("GITHUB_TOKEN")
     if n_selected == 0:
-        source = None
+        source = DefaultReleaseSource(token)
     elif n_selected > 1:
         raise ValueError("Only one source can be selected")
     else:
         if selected_pypi:
-            source = [PyPIReleaseSource()]
+            source = PyPIReleaseSource()
         elif selected_conda:
             platforms = [f"{opts.conda_channel}/{arch}" for arch in opts.conda_arch]
-            source = [CondaReleaseSource(platforms)]
-        # elif selected_github:
-        #    source = GitHubReleaseSource()
+            source = CondaReleaseSource(platforms)
+        elif selected_github:
+            source = GitHubReleaseSource(token)
+
     return source
 
 
