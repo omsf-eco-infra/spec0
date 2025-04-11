@@ -1,0 +1,2 @@
+include LICENSE
+include src/spec0/data/*.json

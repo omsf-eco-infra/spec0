@@ -2,6 +2,9 @@ import pytest
 import responses
 import warnings
 import datetime
+import os
+from contextlib import ExitStack
+from unittest.mock import patch
 from packaging.version import Version
 
 from requires_internet import requires_internet
@@ -84,6 +87,51 @@ class TestPyPIReleaseSource:
             datetime.datetime(2024, 1, 1, 12, 0, tzinfo=datetime.timezone.utc),
             datetime.datetime(2023, 12, 15, 12, 0, tzinfo=datetime.timezone.utc),
         ]
+
+    @pytest.mark.parametrize(
+        "status_code,exception_class",
+        [
+            (404, NoReleaseFound),
+            (503, requests.HTTPError),
+        ],
+    )
+    @responses.activate
+    def test_http_error_responses(self, status_code, exception_class):
+        url = "https://pypi.org/pypi/nonexistent-package/json"
+        responses.add(
+            method=responses.GET,
+            url=url,
+            body=f"Error {status_code}",
+            status=status_code,
+        )
+
+        source = PyPIReleaseSource()
+
+        with pytest.raises(exception_class):
+            list(source.get_releases("nonexistent-package"))
+
+    @responses.activate
+    def test_get_release_no_release(self):
+        """
+        Test that the PyPIReleaseSource correctly handles packages that exist but have no releases.
+        It should raise a NoReleaseFound exception.
+        """
+        url = "https://pypi.org/pypi/package-with-no-releases/json"
+        # Create a mock response with an empty releases dictionary
+        responses.add(
+            method=responses.GET,
+            url=url,
+            json={"releases": {}},
+            status=200,
+        )
+
+        source = PyPIReleaseSource()
+
+        with pytest.raises(
+            NoReleaseFound,
+            match="No releases found for package 'package-with-no-releases'",
+        ):
+            list(source.get_releases("package-with-no-releases"))
 
     @pytest.mark.parametrize("package_name", ["pandas", "numpy", "scipy"])
     @requires_internet
@@ -182,3 +230,410 @@ class TestCondaReleaseSource:
 
         dates = [r.release_date for r in releases if r.release_date is not None]
         assert_is_descending(dates)
+
+
+MOCK_GH_RESPONSE_VALID_ONLY = {
+    "data": {
+        "repository": {
+            "refs": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {
+                        "name": "v2.2.0",
+                        "target": {"committedDate": "2023-03-03T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.1.0",
+                        "target": {"tagger": {"date": "2023-02-10T09:00:00Z"}},
+                    },
+                    {
+                        "name": "1.9.0",
+                        "target": {"committedDate": "2023-01-15T20:00:00Z"},
+                    },
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_MIXED = {
+    "data": {
+        "repository": {
+            "refs": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {
+                        "name": "10.0.0",
+                        "target": {"committedDate": "2024-01-01T12:00:00Z"},
+                    },
+                    {
+                        "name": "not-a-valid-version",
+                        "target": {"committedDate": "2024-01-02T12:00:00Z"},
+                    },
+                    {
+                        "name": "9.9.9",
+                        "target": {"committedDate": "2023-12-15T12:00:00Z"},
+                    },
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_PAGE1 = {
+    "data": {
+        "repository": {
+            "refs": {
+                "pageInfo": {"endCursor": "CURSOR1", "hasNextPage": True},
+                "nodes": [
+                    {
+                        "name": "3.0.0",
+                        "target": {"committedDate": "2024-01-05T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.5.0",
+                        "target": {"committedDate": "2023-12-20T12:00:00Z"},
+                    },
+                ],
+            }
+        }
+    }
+}
+
+MOCK_GH_RESPONSE_PAGE2 = {
+    "data": {
+        "repository": {
+            "refs": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "nodes": [
+                    {
+                        "name": "2.2.0",
+                        "target": {"committedDate": "2023-11-10T12:00:00Z"},
+                    },
+                    {
+                        "name": "2.0.0",
+                        "target": {"committedDate": "2023-10-01T12:00:00Z"},
+                    },
+                ],
+            }
+        }
+    }
+}
+
+
+class TestGitHubReleaseSource:
+    @pytest.mark.parametrize("inputstr", ["octohello", "octocat/Hello-World"])
+    @responses.activate
+    def test_valid_only_versions(self, inputstr):
+        """Test that valid versions are parsed and returned in descending order."""
+        url = "https://api.github.com/graphql"
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_VALID_ONLY,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+        source.canonical_sources["octohello"] = "octocat/Hello-World"
+        releases = list(source.get_releases(inputstr))
+
+        # Verify the number of releases.
+        assert len(releases) == 3
+
+        # Check that the versions are correctly parsed.
+        versions = [r.version for r in releases]
+        assert versions == [Version("2.2.0"), Version("2.1.0"), Version("1.9.0")]
+
+        # Verify that the release dates are in descending order.
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+        assert release_dates == [
+            datetime.datetime(2023, 3, 3, 12, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 2, 10, 9, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 1, 15, 20, 0, tzinfo=datetime.timezone.utc),
+        ]
+
+    @responses.activate
+    def test_mixed_versions_warning(self):
+        """Test that invalid version strings trigger a warning and are skipped."""
+        url = "https://api.github.com/graphql"
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_MIXED,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        with pytest.warns(UserWarning, match="Skipping invalid version"):
+            warnings.simplefilter("always")
+            source = GitHubReleaseSource(token)
+            releases = list(source._get_releases_owner_repo("octocat/Hello-World"))
+
+        # Only the valid versions should be returned.
+        assert len(releases) == 2
+        versions = [r.version for r in releases]
+        assert versions == [Version("10.0.0"), Version("9.9.9")]
+
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+        assert release_dates == [
+            datetime.datetime(2024, 1, 1, 12, 0, tzinfo=datetime.timezone.utc),
+            datetime.datetime(2023, 12, 15, 12, 0, tzinfo=datetime.timezone.utc),
+        ]
+
+    @responses.activate
+    def test_pagination(self):
+        """
+        Test that pagination is handled correctly by returning all releases from
+        multiple pages in the proper order.
+        """
+        url = "https://api.github.com/graphql"
+        # Simulate two paginated responses.
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_PAGE1,
+            status=200,
+        )
+        responses.add(
+            responses.POST,
+            url,
+            json=MOCK_GH_RESPONSE_PAGE2,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+        releases = list(source._get_releases_owner_repo("octocat/Hello-World"))
+
+        # We expect 4 releases total.
+        assert len(releases) == 4
+
+        # Check the expected version order.
+        expected_versions = [
+            Version("3.0.0"),
+            Version("2.5.0"),
+            Version("2.2.0"),
+            Version("2.0.0"),
+        ]
+        versions = [r.version for r in releases]
+        assert versions == expected_versions
+
+        # Verify that the release dates are in descending order.
+        release_dates = [r.release_date for r in releases]
+        assert_is_descending(release_dates)
+
+    @pytest.mark.skipif(
+        not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set"
+    )
+    def test_integration(self):
+        """
+        Integration test using the real GitHub API to fetch releases for the
+        repository openpathsampling/openpathsampling. Checks that at least one
+        release is returned and that the releases are in descending order.
+        """
+        token = os.environ["GITHUB_TOKEN"]
+        source = GitHubReleaseSource(token)
+        for package in source.canonical_sources:
+            releases = list(source.get_releases(package))
+            assert len(releases) > 0
+
+    @pytest.mark.parametrize(
+        "package,expected",
+        [
+            ("owner/repo", True),
+            ("python", True),
+            ("package-without-slash", False),
+            ("too/many/slashes", False),
+            ("", False),
+        ],
+    )
+    def test_is_github_package(self, package, expected):
+        """Test the is_github_package method with various inputs."""
+        source = GitHubReleaseSource("FAKE_TOKEN")
+        # Ensure the canonical_sources has expected entries
+        source.canonical_sources = {"python": "python/cpython"}
+
+        result = source.is_github_package(package)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "package",
+        [
+            "unknown-package",
+            "too/many/slashes",
+        ],
+    )
+    def test_get_releases_not_found(self, package):
+        source = GitHubReleaseSource("FAKE_TOKEN")
+        source.canonical_sources = {"python": "python/cpython"}
+
+        expected_message = f"GitHub repository for package '{package}' not found"
+        with pytest.raises(NoReleaseFound, match=expected_message):
+            list(source._get_releases(package))
+
+    @responses.activate
+    def test_get_releases_no_releases_found(self):
+        """Test that a NoReleaseFound exception is raised when a GitHub repository exists but has no releases."""
+        url = "https://api.github.com/graphql"
+        # Mock an empty response with no releases
+        empty_response = {
+            "data": {
+                "repository": {
+                    "refs": {
+                        "pageInfo": {"endCursor": None, "hasNextPage": False},
+                        "nodes": [],
+                    }
+                }
+            }
+        }
+        responses.add(
+            responses.POST,
+            url,
+            json=empty_response,
+            status=200,
+        )
+
+        token = "FAKE_TOKEN"
+        source = GitHubReleaseSource(token)
+
+        expected_message = (
+            "No releases found for GitHub repository 'octocat/empty-repo'"
+        )
+        with pytest.raises(NoReleaseFound, match=expected_message):
+            list(source._get_releases_owner_repo("octocat/empty-repo"))
+
+
+def make_release(version: str, date_str: str):
+    dt = datetime.datetime.fromisoformat(date_str).replace(tzinfo=datetime.timezone.utc)
+    return Release(Version(version), dt)
+
+
+class TestDefaultReleaseSource:
+    def test_get_releases_github(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = True
+            mock_github.get_releases.return_value = iter(
+                [make_release("1.0.0", "2023-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("somegithub/repo"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("1.0.0")
+            mock_github.get_releases.assert_called_once()
+            mock_pypi_cls.return_value.get_releases.assert_not_called()
+            mock_conda_cls.return_value.get_releases.assert_not_called()
+
+    def test_get_releases_pypi(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.return_value = iter(
+                [make_release("2.0.0", "2022-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("non-github-package"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("2.0.0")
+            mock_github.get_releases.assert_not_called()
+            mock_pypi.get_releases.assert_called_once()
+            mock_conda_cls.return_value.get_releases.assert_not_called()
+
+    def test_get_releases_conda(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.side_effect = NoReleaseFound("PyPI failed")
+
+            mock_conda = mock_conda_cls.return_value
+            mock_conda.get_releases.return_value = iter(
+                [make_release("3.0.0", "2021-01-01T00:00:00")]
+            )
+
+            source = DefaultReleaseSource("fake-token")
+            releases = list(source.get_releases("fallback-package"))
+
+            assert len(releases) == 1
+            assert releases[0].version == Version("3.0.0")
+            mock_github.get_releases.assert_not_called()
+            mock_pypi.get_releases.assert_called_once()
+            mock_conda.get_releases.assert_called_once()
+
+    def test_get_releases_fail(self):
+        with ExitStack() as stack:
+            mock_github_cls = stack.enter_context(
+                patch("spec0.releasesource.GitHubReleaseSource")
+            )
+            mock_pypi_cls = stack.enter_context(
+                patch("spec0.releasesource.PyPIReleaseSource")
+            )
+            mock_conda_cls = stack.enter_context(
+                patch("spec0.releasesource.CondaReleaseSource")
+            )
+
+            mock_github = mock_github_cls.return_value
+            mock_github.is_github_package.return_value = False
+
+            mock_pypi = mock_pypi_cls.return_value
+            mock_pypi.get_releases.side_effect = NoReleaseFound("PyPI failed")
+
+            mock_conda = mock_conda_cls.return_value
+            mock_conda.get_releases.side_effect = NoReleaseFound("Conda failed")
+
+            source = DefaultReleaseSource("fake-token")
+
+            with pytest.raises(NoReleaseFound, match="Conda failed"):
+                list(source.get_releases("bad-package"))
+
+    def test_github_token_required(self, monkeypatch):
+        """Test that a ValueError is raised when no GitHub token is provided."""
+        # Ensure environment is clean
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+        # This will trigger the GitHub release path due to the slash
+        source = DefaultReleaseSource(github_token=None)
+
+        with pytest.raises(ValueError, match="GitHub token not provided"):
+            list(source.get_releases("someuser/someproject"))
