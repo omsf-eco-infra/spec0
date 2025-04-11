@@ -18,3 +18,12 @@ input to the Support Filter. The output of the Support Filter is a dict with
 a particular structure, which we refer to as the "package info" dict. It is
 also the input to the Output function.
 
+.. toctree::
+   :maxdepth: 1
+
+   sources
+   filters
+   main
+   cli
+   utils
+   
