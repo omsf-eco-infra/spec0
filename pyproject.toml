@@ -42,6 +42,7 @@ docs = [
   "sphinx",
   "sphinxcontrib-mermaid",
   "sphinx-autodoc-typehints",
+  "sphinx-argparse",
   "sphinx-rtd-theme",
 ]
 

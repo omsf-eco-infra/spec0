@@ -26,6 +26,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
+    "sphinxarg.ext",
     "sphinxcontrib.mermaid",
     "sphinx_rtd_theme",
 ]
