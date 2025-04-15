@@ -1,8 +1,8 @@
 """
 Release Filters
 
-A release filter is filters a set of releases to determine which (minor
-versions) are supported.
+A release filter filters a set of releases to determine which minor
+versions are supported.
 """
 
 import datetime
