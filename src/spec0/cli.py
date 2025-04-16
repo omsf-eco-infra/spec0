@@ -23,10 +23,10 @@ def make_parser():
             "List versions of a given package that should be supported "
             "according to spec0-style rules. This can be customized in "
             "3 ways: the source of the release information, the filter "
-            "that defines supported versions, and the output format."
+            "that defines supported versions, and the output format. "
             "By default, we search first if this package is known as "
             "a GitHub release, then we check for it on PyPI, and finally "
-            "on conda-forge (in noarch are linux-64). The default uses "
+            "on conda-forge (in noarch and linux-64). The default uses "
             "SPEC0 according to the exact date of the release, and outputs "
             "as a table with release dates and drop dates."
         ),
@@ -86,8 +86,9 @@ def make_parser():
         "Output",
         description=(
             "Select the output format. Only one output can be selected. "
-            "output-columns selects the columns to be printed in the table, "
-            "and is ignored if output-json or output-specifier is selected."
+            "``output-columns`` selects the columns to be printed in the "
+            "table, and is ignored if ``output-json`` or ``output-specifier`` "
+            "is selected."
         ),
     )
     output.add_argument(

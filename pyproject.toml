@@ -38,6 +38,13 @@ dev = [
   "ruff",
   "pre-commit",
 ]
+docs = [
+  "sphinx",
+  "sphinxcontrib-mermaid",
+  "sphinx-autodoc-typehints",
+  "sphinx-argparse",
+  "sphinx-rtd-theme",
+]
 
 [project.scripts]
 spec0 = "spec0.cli:cli_main"
@@ -55,7 +62,7 @@ spec0 = { path = ".", editable = true }
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
-dev = { features = ["dev"], solve-group = "default" }
+dev = { features = ["dev", "docs"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
