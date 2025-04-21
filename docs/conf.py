@@ -5,10 +5,8 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-import sys
-import os
 
-sys.path.insert(0, os.path.abspath("../src/spec0"))
+# sys.path.insert(0, os.path.abspath("../src/spec0"))
 
 project = "SPEC0"
 copyright = "2025, David W.H. Swenson"
