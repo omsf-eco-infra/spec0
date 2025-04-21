@@ -49,10 +49,6 @@ docs = [
 [project.scripts]
 spec0 = "spec0.cli:cli_main"
 
-[tool.setuptools]
-packages = ["spec0"]
-package-dir = { "" = "src" }
-
 [tool.pixi.project]
 channels = ["conda-forge"]
 platforms = ["osx-64"]
